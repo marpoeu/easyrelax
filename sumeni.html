@@ -1,0 +1,527 @@
+<title>Šumění</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#0f1615">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one calm control column; header console with transport + master, then a grid of channel strips */
+:root{
+  --bg:#eef2f1; --surface:#ffffff; --surface-2:#e3e9e7; --line:#cfd8d5;
+  --fg:#18221f; --muted:#5a6a66; --accent:#2c7a69; --accent-fg:#ffffff;
+  --wait:#a57a1c; --danger:#b23b33;
+  --f-display:"Sora", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0f1615; --surface:#17211f; --surface-2:#1f2b29; --line:#2c3a37;
+  --fg:#e2ebe8; --muted:#8fa29d; --accent:#5ec4ac; --accent-fg:#0b1412;
+  --wait:#e0bb62; --danger:#ef8077; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0f1615; --surface:#17211f; --surface-2:#1f2b29; --line:#2c3a37;
+  --fg:#e2ebe8; --muted:#8fa29d; --accent:#5ec4ac; --accent-fg:#0b1412;
+  --wait:#e0bb62; --danger:#ef8077; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg); color:var(--fg); font-family:var(--f-body); font-size:15px; line-height:1.45}
+.wrap{max-width:1080px; margin:0 auto; padding-block:20px 48px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px));
+  display:flex; flex-direction:column; gap:20px}
+h1,h2{font-family:var(--f-display); font-weight:600; margin:0; text-wrap:balance}
+h1{font-size:1.75rem; letter-spacing:-.01em}
+h2{font-size:1rem}
+.sub{color:var(--muted); margin:2px 0 0}
+button,input,select{font:inherit; color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+input[type=range]{accent-color:var(--accent); width:100%; min-width:0}
+.mono{font-family:var(--f-mono); font-variant-numeric:tabular-nums}
+
+/* console */
+.console{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px;
+  display:grid; grid-template-columns:auto 1fr; gap:18px 22px; align-items:center}
+.transport{width:84px; height:84px; border-radius:50%; border:0; background:var(--accent); color:var(--accent-fg);
+  display:grid; place-items:center; font-weight:600; font-size:.8rem; letter-spacing:.06em; text-transform:uppercase; gap:2px}
+.transport svg{width:26px; height:26px}
+.transport[aria-pressed="true"]{background:var(--fg); color:var(--bg)}
+.ctl{display:flex; flex-direction:column; gap:12px; min-width:0}
+.row{display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center}
+.lbl{font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:600}
+.master{display:grid; grid-template-columns:auto 1fr 3.2em; gap:10px; align-items:center; flex:1 1 240px; min-width:0}
+select{background:var(--surface-2); border:1px solid var(--line); border-radius:8px; padding:6px 8px}
+.timer-left{color:var(--wait); font-size:.85rem}
+.summary{color:var(--muted); font-size:.85rem}
+
+/* toolbar + mixes */
+.bar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between}
+.btn{border:1px solid var(--line); background:var(--surface); border-radius:9px; padding:8px 14px; font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent); color:var(--accent-fg); border-color:var(--accent)}
+.mixes{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.chip{display:inline-flex; align-items:stretch; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:var(--surface)}
+.chip button{border:0; background:none; padding:6px 12px}
+.chip .x{padding:6px 10px; color:var(--muted); border-left:1px solid var(--line)}
+.chip .x.armed{color:var(--danger); font-weight:600}
+.chip.current{border-color:var(--accent)}
+.savebox{display:flex; gap:8px; flex-wrap:wrap}
+.savebox input{background:var(--surface); border:1px solid var(--line); border-radius:9px; padding:7px 10px; min-width:0; width:12em}
+.msg{font-size:.88rem; color:var(--danger)}
+.msg:empty{display:none}
+
+/* channel strips */
+.grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap:14px}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:12px; min-width:0}
+.card.off{opacity:.62}
+.head{display:flex; gap:10px; align-items:center}
+.name{flex:1; min-width:0; border:1px solid transparent; background:none; border-radius:6px; padding:3px 6px; font-weight:600; font-size:1rem}
+.name:hover,.name:focus{border-color:var(--line); background:var(--surface-2)}
+.tag{font-size:.68rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); border:1px solid var(--line); border-radius:4px; padding:1px 5px}
+.sw{position:relative; width:42px; height:24px; flex:none}
+.sw input{position:absolute; inset:0; opacity:0; margin:0; cursor:pointer}
+.sw span{position:absolute; inset:0; border-radius:999px; background:var(--surface-2); border:1px solid var(--line); transition:background .15s}
+.sw span::after{content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:var(--muted); transition:transform .15s, background .15s}
+.sw input:checked + span{background:var(--accent); border-color:var(--accent)}
+.sw input:checked + span::after{transform:translateX(18px); background:var(--accent-fg)}
+.sw input:focus-visible + span{outline:2px solid var(--accent); outline-offset:2px}
+.vol{display:grid; grid-template-columns:5.5em 1fr 3em; gap:10px; align-items:center}
+.seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden}
+.seg label{padding:5px 12px; cursor:pointer; font-size:.88rem}
+.seg input{position:absolute; opacity:0; pointer-events:none}
+.seg input:checked + span{color:var(--accent); font-weight:600}
+.seg label:has(input:checked){background:var(--surface-2)}
+.seg label:has(input:focus-visible){outline:2px solid var(--accent); outline-offset:-2px}
+.pause{display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:.9rem}
+.pause input{width:5em; background:var(--surface-2); border:1px solid var(--line); border-radius:7px; padding:5px 7px; text-align:right}
+.foot{display:flex; justify-content:space-between; align-items:center; gap:8px; border-top:1px solid var(--line); padding-top:10px}
+.status{font-size:.85rem; color:var(--muted); display:flex; align-items:center; gap:7px; min-width:0}
+.dot{width:8px; height:8px; border-radius:50%; background:var(--line); flex:none}
+.status.play .dot{background:var(--accent)}
+.status.play{color:var(--fg)}
+.status.wait .dot{background:var(--wait)}
+.status.err{color:var(--danger)} .status.err .dot{background:var(--danger)}
+.acts{display:flex; gap:6px}
+.mini{border:1px solid var(--line); background:none; border-radius:7px; padding:4px 10px; font-size:.84rem}
+.mini.armed{color:var(--danger); border-color:var(--danger)}
+.empty{border:1px dashed var(--line); border-radius:12px; padding:28px; text-align:center; color:var(--muted)}
+.help{color:var(--muted); font-size:.88rem; max-width:65ch; display:flex; flex-direction:column; gap:6px}
+.help b{color:var(--fg); font-weight:600}
+@media (max-width:520px){
+  .console{grid-template-columns:1fr; justify-items:start}
+  .transport{width:72px; height:72px}
+}
+@media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Šumění</h1>
+    <p class="sub">Mixér zvuků na relaxaci a spaní. Každý zvuk má vlastní hlasitost a pauzu mezi přehráními.</p>
+  </header>
+
+  <section class="console" aria-label="Ovládání přehrávání">
+    <button class="transport" id="play" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path id="playIcon" fill="currentColor" d="M8 5v14l11-7z"/></svg>
+      <span id="playLbl">Spustit</span>
+    </button>
+    <div class="ctl">
+      <div class="row">
+        <div class="master">
+          <span class="lbl">Celkem</span>
+          <input type="range" id="master" min="0" max="100" value="80" aria-label="Celková hlasitost">
+          <span class="mono" id="masterVal">80 %</span>
+        </div>
+      </div>
+      <div class="row">
+        <label class="lbl" for="timer">Vypnout za</label>
+        <select id="timer">
+          <option value="0">nevypínat</option>
+          <option value="15">15 min</option><option value="30">30 min</option><option value="45">45 min</option>
+          <option value="60">60 min</option><option value="90">90 min</option><option value="120">2 h</option><option value="240">4 h</option>
+        </select>
+        <span class="timer-left mono" id="timerLeft"></span>
+        <span class="summary" id="summary"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="bar" aria-label="Zvuky a mixy">
+    <div class="mixes" id="mixes"></div>
+    <div class="savebox">
+      <input id="mixName" placeholder="Název mixu" aria-label="Název mixu">
+      <button class="btn" id="saveMix">Uložit mix</button>
+      <label class="btn primary" for="files" style="cursor:pointer">Přidat zvuky</label>
+      <input type="file" id="files" accept="audio/*" multiple hidden>
+    </div>
+  </section>
+  <p class="msg" id="msg" role="status"></p>
+
+  <section class="grid" id="tracks" aria-label="Zvuky"></section>
+
+  <section class="help">
+    <h2>Jak to používat</h2>
+    <p><b>Smyčka</b> hraje zvuk pořád dokola (déšť, vítr, potok). <b>Interval</b> přehraje zvuk jednou a pak čeká náhodnou dobu v zadaném rozsahu (ptáci, hrom, kapky).</p>
+    <p>Zvuky z tlačítka Přidat zvuky se ukládají jen v tomto prohlížeči na tomto zařízení. Čtyři zvuky označené Ukázka jsou generované a můžeš je odebrat.</p>
+    <p>Na Androidu otevři stránku v Chrome a v menu zvol Přidat na plochu. Aby hrála i se zhasnutým displejem, nastav Chrome v nastavení baterie na Neomezeno.</p>
+  </section>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const rand = (a, b) => a + Math.random() * (b - a);
+const vol2gain = v => Math.pow(v / 100, 2);
+const uid = () => "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const say = t => { $("#msg").textContent = t || ""; };
+
+/* ---------- storage (IndexedDB, falls back to memory) ---------- */
+let storageOk = true;
+const memBlobs = new Map();
+const idb = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    try {
+      const r = indexedDB.open("sumeni", 1);
+      r.onupgradeneeded = () => { const d = r.result;
+        d.createObjectStore("sounds", { keyPath: "id" });
+        d.createObjectStore("blobs", { keyPath: "id" });
+        d.createObjectStore("mixes", { keyPath: "id" }); };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    } catch (e) { rej(e); }
+  }));
+  const tx = async (store, mode, fn) => { const d = await open();
+    return new Promise((res, rej) => { const t = d.transaction(store, mode); const req = fn(t.objectStore(store));
+      t.oncomplete = () => res(req && req.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); }); };
+  return {
+    all: s => tx(s, "readonly", st => st.getAll()),
+    get: (s, k) => tx(s, "readonly", st => st.get(k)),
+    put: (s, v) => tx(s, "readwrite", st => st.put(v)),
+    del: (s, k) => tx(s, "readwrite", st => st.delete(k)),
+  };
+})();
+const safe = p => p.catch(() => { if (storageOk) { storageOk = false; say("Prohlížeč neukládá data, změny vydrží jen do zavření stránky."); } });
+const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+
+/* ---------- state ---------- */
+let tracks = [], mixes = [], currentMix = null;
+let masterVol = +(lsGet("sumeni.master") || 80);
+let ctx = null, master = null, outEl = null, playing = false;
+let timerMin = 0, timerEnd = 0;
+const voices = new Map(), buffers = new Map();
+
+const strip = t => ({ id: t.id, name: t.name, demo: t.demo || null, vol: t.vol, on: t.on, mode: t.mode, min: t.min, max: t.max, order: t.order });
+const saveTrack = t => { clearTimeout(t._st); t._st = setTimeout(() => safe(idb.put("sounds", strip(t))), 250); };
+const range = t => { let a = Math.max(0, +t.min || 0), b = Math.max(0, +t.max || 0); return a <= b ? [a, b] : [b, a]; };
+
+/* ---------- demo sounds (generated, no files needed) ---------- */
+const SR = 44100;
+function toBuffer(data) { const b = new AudioBuffer({ length: data.length, sampleRate: SR, numberOfChannels: 1 }); b.copyToChannel(data, 0); return b; }
+function genDemo(kind) {
+  if (kind === "rain") {
+    const len = SR * 6, d = new Float32Array(len); let b0 = 0, b1 = 0, b2 = 0;
+    for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1;
+      b0 = .99765 * b0 + w * .099046; b1 = .963 * b1 + w * .2965164; b2 = .57 * b2 + w * 1.0526913;
+      d[i] = (b0 + b1 + b2 + w * .1848) * .1; }
+    const n = SR / 2, out = new Float32Array(len - n);          // crossfade tail into head = seamless loop
+    for (let i = 0; i < out.length; i++) out[i] = i < n ? d[i] * (i / n) + d[len - n + i] * (1 - i / n) : d[i];
+    return toBuffer(out);
+  }
+  if (kind === "crickets") {
+    const len = Math.floor(SR * 1.3), d = new Float32Array(len);
+    for (const c0 of [0, .3, .6]) for (let p = 0; p < 5; p++) {
+      const s = Math.floor((c0 + p * .024) * SR), L = Math.floor(.016 * SR);
+      for (let i = 0; i < L && s + i < len; i++) d[s + i] += Math.sin(2 * Math.PI * 4600 * (s + i) / SR) * Math.sin(Math.PI * i / L) * .28;
+    }
+    return toBuffer(d);
+  }
+  if (kind === "drop") {
+    const len = Math.floor(SR * .45), d = new Float32Array(len); let ph = 0;
+    for (let i = 0; i < len; i++) { const t = i / SR, f = t < .05 ? 500 + 1100 * (t / .05) : 1600;
+      ph += 2 * Math.PI * f / SR; d[i] = Math.sin(ph) * Math.exp(-t / .06) * .5 * Math.min(1, t / .002); }
+    return toBuffer(d);
+  }
+  if (kind === "thunder") {
+    const len = SR * 6, d = new Float32Array(len); let b = 0, lp = 0;
+    for (let i = 0; i < len; i++) { const t = i / SR, w = Math.random() * 2 - 1;
+      b = (b + .02 * w) / 1.02; lp += (b - lp) * .2;
+      const env = Math.min(1, t / .35) * Math.exp(-t / 1.6) * (.65 + .35 * Math.sin(t * 5.3 + Math.sin(t * 1.7) * 2));
+      d[i] = Math.max(-1, Math.min(1, lp * 3.2 * env)); }
+    return toBuffer(d);
+  }
+}
+const DEMOS = [
+  { demo: "rain", name: "Déšť", vol: 50, on: true, mode: "loop", min: 10, max: 30 },
+  { demo: "crickets", name: "Cvrčci", vol: 30, on: true, mode: "interval", min: 3, max: 12 },
+  { demo: "drop", name: "Kapka", vol: 35, on: true, mode: "interval", min: 2, max: 9 },
+  { demo: "thunder", name: "Vzdálený hrom", vol: 55, on: false, mode: "interval", min: 40, max: 120 },
+];
+
+/* ---------- audio engine ---------- */
+function getCtx() {
+  if (!ctx) { ctx = new (window.AudioContext || window.webkitAudioContext)(); master = ctx.createGain(); applyMaster(); }
+  return ctx;
+}
+async function ensureOutput() {
+  getCtx();
+  try { await ctx.resume(); } catch {}
+  if (outEl === null && !master._routed) {
+    master._routed = true;
+    // Route through an <audio> element: Android then treats it as media playback (notification, keeps playing in background)
+    try {
+      const dest = ctx.createMediaStreamDestination(); master.connect(dest);
+      outEl = new Audio(); outEl.srcObject = dest.stream; await outEl.play();
+    } catch { try { master.disconnect(); } catch {} outEl = null; master.connect(ctx.destination); }
+  } else if (outEl && outEl.paused) { try { await outEl.play(); } catch {} }
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({ title: "Šumění", artist: currentMix ? currentMix : "Vlastní mix" });
+    navigator.mediaSession.setActionHandler("play", () => startAll());
+    navigator.mediaSession.setActionHandler("pause", () => stopAll());
+    navigator.mediaSession.setActionHandler("stop", () => stopAll());
+  } catch {}
+}
+async function getBuffer(t) {
+  if (buffers.has(t.id)) return buffers.get(t.id);
+  const p = (async () => {
+    if (t.demo) return genDemo(t.demo);
+    let blob = memBlobs.get(t.id);
+    if (!blob) { const rec = await idb.get("blobs", t.id); blob = rec && rec.blob; }
+    if (!blob) throw new Error("missing");
+    return await getCtx().decodeAudioData(await blob.arrayBuffer());
+  })();
+  buffers.set(t.id, p);
+  try { return await p; } catch (e) { buffers.delete(t.id); throw e; }
+}
+
+class Voice {
+  constructor(t) { this.t = t; this.g = ctx.createGain(); this.g.gain.value = vol2gain(t.vol); this.g.connect(master);
+    this.srcs = new Set(); this.active = false; this.next = null; this.startAt = 0; this.until = 0; this.err = null; }
+  async start() {
+    this.active = true;
+    try { this.buf = await getBuffer(this.t); } catch { this.err = "Soubor nejde přehrát"; this.active = false; return; }
+    if (!this.active) return;
+    const now = ctx.currentTime + .05;
+    if (this.t.mode === "loop") { const s = this.src(); s.loop = true; s.start(now); this.startAt = now; this.until = Infinity; }
+    else { const [a] = range(this.t); this.playAt(now + rand(0, Math.min(a, 8))); }
+  }
+  src() { const s = ctx.createBufferSource(); s.buffer = this.buf; s.connect(this.g); this.srcs.add(s); return s; }
+  playAt(t) {
+    if (!this.active) return;
+    const s = this.src(), [a, b] = range(this.t);
+    s.start(t); this.startAt = t; this.until = t + this.buf.duration; this.next = this.until + rand(a, b);
+    s.onended = () => { this.srcs.delete(s); try { s.disconnect(); } catch {}
+      if (this.active && this.t.mode === "interval") this.playAt(Math.max(this.next, ctx.currentTime + .02)); };
+  }
+  setVol() { this.g.gain.setTargetAtTime(vol2gain(this.t.vol), ctx.currentTime, .05); }
+  stop() { this.active = false; for (const s of this.srcs) { try { s.stop(); } catch {} } this.srcs.clear(); this.next = null; this.until = 0; }
+  dispose() { this.stop(); setTimeout(() => { try { this.g.disconnect(); } catch {} }, 100); }
+  status() {
+    if (this.err) return ["err", this.err];
+    if (!this.buf) return ["wait", "Načítám…"];
+    const now = ctx.currentTime;
+    if (this.t.mode === "loop") return ["play", "Hraje ve smyčce"];
+    if (now >= this.startAt && now < this.until) return ["play", "Hraje"];
+    const target = now < this.startAt ? this.startAt : this.next;
+    if (target == null) return ["", "Čeká"];
+    return ["wait", "Další za " + fmt(Math.max(0, target - now))];
+  }
+}
+const fmt = s => { s = Math.ceil(s); return s < 60 ? s + " s" : Math.floor(s / 60) + " min " + String(s % 60).padStart(2, "0") + " s"; };
+
+function startVoice(t) { stopVoice(t); const v = new Voice(t); voices.set(t.id, v); v.start(); }
+function stopVoice(t) { const v = voices.get(t.id); if (v) { v.dispose(); voices.delete(t.id); } }
+async function startAll() {
+  await ensureOutput(); playing = true;
+  tracks.forEach(t => t.on && startVoice(t));
+  if (timerMin) armTimer(timerMin);
+  try { navigator.mediaSession.playbackState = "playing"; } catch {}
+  paintTransport(); tick();
+}
+function stopAll() {
+  playing = false; voices.forEach(v => v.dispose()); voices.clear();
+  timerEnd = 0; applyMaster(); if (outEl) try { outEl.pause(); } catch {}
+  try { navigator.mediaSession.playbackState = "paused"; } catch {}
+  paintTransport(); tick();
+}
+function restartVoices() { if (!playing) return; voices.forEach(v => v.dispose()); voices.clear(); tracks.forEach(t => t.on && startVoice(t)); }
+
+/* master gain + sleep timer fade (scheduled on the audio clock so it works even when JS timers are throttled) */
+function applyMaster() {
+  if (!ctx) return; const now = ctx.currentTime, g = master.gain, v = vol2gain(masterVol);
+  g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(v, now + .08);
+  if (playing && timerEnd) {
+    const rem = (timerEnd - Date.now()) / 1000, fade = Math.min(30, Math.max(rem, .1));
+    g.setValueAtTime(v, now + Math.max(.1, rem - fade)); g.linearRampToValueAtTime(0, now + Math.max(.2, rem));
+  }
+}
+function armTimer(min) { timerEnd = min ? Date.now() + min * 60000 : 0; applyMaster(); }
+
+/* ---------- UI ---------- */
+function paintTransport() {
+  $("#play").setAttribute("aria-pressed", playing);
+  $("#playLbl").textContent = playing ? "Zastavit" : "Spustit";
+  $("#playIcon").setAttribute("d", playing ? "M6 6h12v12H6z" : "M8 5v14l11-7z");
+}
+function cardHTML(t) {
+  const i = t.id, iv = t.mode === "interval";
+  return `<article class="card${t.on ? "" : " off"}" data-id="${i}">
+    <div class="head">
+      <label class="sw" title="Zapnout/vypnout"><input type="checkbox" id="on-${i}" data-act="on" ${t.on ? "checked" : ""} aria-label="Zapnout ${esc(t.name)}"><span></span></label>
+      <input class="name" id="name-${i}" data-act="name" value="${esc(t.name)}" aria-label="Název zvuku">
+      ${t.demo ? '<span class="tag">Ukázka</span>' : ""}
+    </div>
+    <div class="vol">
+      <span class="lbl">Hlasitost</span>
+      <input type="range" id="vol-${i}" data-act="vol" min="0" max="100" value="${t.vol}" aria-label="Hlasitost ${esc(t.name)}">
+      <span class="mono" data-out="vol">${t.vol} %</span>
+    </div>
+    <div class="row">
+      <div class="seg" role="radiogroup" aria-label="Režim">
+        <label><input type="radio" name="mode-${i}" id="mloop-${i}" value="loop" data-act="mode" ${iv ? "" : "checked"}><span>Smyčka</span></label>
+        <label><input type="radio" name="mode-${i}" id="mint-${i}" value="interval" data-act="mode" ${iv ? "checked" : ""}><span>Interval</span></label>
+      </div>
+    </div>
+    <div class="pause" ${iv ? "" : "hidden"}>
+      <span>Pauza od</span>
+      <input type="number" class="mono" id="min-${i}" data-act="min" min="0" max="3600" step="1" value="${t.min}" aria-label="Minimální pauza v sekundách">
+      <span>do</span>
+      <input type="number" class="mono" id="max-${i}" data-act="max" min="0" max="3600" step="1" value="${t.max}" aria-label="Maximální pauza v sekundách">
+      <span>s</span>
+    </div>
+    <div class="foot">
+      <span class="status" data-out="status"><span class="dot"></span><span>Vypnuto</span></span>
+      <span class="acts">
+        <button class="mini" data-act="test">Přehrát</button>
+        <button class="mini" data-act="del">Odebrat</button>
+      </span>
+    </div>
+  </article>`;
+}
+function renderTracks() {
+  const box = $("#tracks");
+  box.innerHTML = tracks.length ? tracks.map(cardHTML).join("")
+    : `<div class="empty">Zatím tu nejsou žádné zvuky. Nahraj své soubory tlačítkem <b>Přidat zvuky</b> (MP3, WAV, OGG, M4A).</div>`;
+  tick();
+}
+function renderMixes() {
+  $("#mixes").innerHTML = (mixes.length ? '<span class="lbl">Mixy</span>' : '<span class="summary">Ulož si nastavení jako mix a později ho vyvoláš jedním klepnutím.</span>')
+    + mixes.map(m => `<span class="chip${m.name === currentMix ? " current" : ""}" data-mix="${m.id}">
+      <button data-act="load">${esc(m.name)}</button><button class="x" data-act="mdel" aria-label="Smazat mix ${esc(m.name)}">×</button></span>`).join("");
+}
+function tick() {
+  for (const t of tracks) {
+    const el = document.querySelector(`[data-id="${t.id}"] [data-out="status"]`); if (!el) continue;
+    let [cls, txt] = ["", t.on ? "Připraveno" : "Vypnuto"];
+    const v = voices.get(t.id);
+    if (playing && v) [cls, txt] = v.status();
+    el.className = "status " + cls; el.lastElementChild.textContent = txt;
+  }
+  const on = tracks.filter(t => t.on).length;
+  $("#summary").textContent = `${on} z ${tracks.length} zvuků zapnuto`;
+  if (playing && timerEnd) {
+    const rem = (timerEnd - Date.now()) / 1000;
+    if (rem <= 0) { stopAll(); timerMin = 0; $("#timer").value = "0"; $("#timerLeft").textContent = ""; return; }
+    $("#timerLeft").textContent = "zbývá " + fmt(rem);
+  } else $("#timerLeft").textContent = "";
+}
+setInterval(tick, 500);
+
+/* ---------- events ---------- */
+$("#play").addEventListener("click", () => playing ? stopAll() : startAll());
+const mEl = $("#master"); mEl.value = masterVol; $("#masterVal").textContent = masterVol + " %";
+mEl.addEventListener("input", () => { masterVol = +mEl.value; $("#masterVal").textContent = masterVol + " %"; applyMaster(); lsSet("sumeni.master", masterVol); });
+$("#timer").addEventListener("change", e => { timerMin = +e.target.value; if (playing) armTimer(timerMin); tick(); });
+
+const box = $("#tracks");
+const findT = el => { const c = el.closest("[data-id]"); return c && tracks.find(t => t.id === c.dataset.id); };
+box.addEventListener("input", e => {
+  const t = findT(e.target); if (!t) return; const act = e.target.dataset.act;
+  if (act === "vol") { t.vol = +e.target.value; e.target.closest(".vol").querySelector('[data-out="vol"]').textContent = t.vol + " %";
+    voices.get(t.id)?.setVol(); saveTrack(t); currentMix = null; }
+  if (act === "name") { t.name = e.target.value.trim() || "Bez názvu"; saveTrack(t); }
+});
+box.addEventListener("change", e => {
+  const t = findT(e.target); if (!t) return; const act = e.target.dataset.act, card = e.target.closest(".card");
+  if (act === "on") { t.on = e.target.checked; card.classList.toggle("off", !t.on); if (playing) t.on ? startVoice(t) : stopVoice(t); }
+  else if (act === "mode") { t.mode = e.target.value; card.querySelector(".pause").hidden = t.mode !== "interval"; if (playing && t.on) startVoice(t); }
+  else if (act === "min" || act === "max") { t[act] = Math.min(3600, Math.max(0, Math.round(+e.target.value || 0))); e.target.value = t[act]; if (playing && t.on) startVoice(t); }
+  else return;
+  currentMix = null; renderMixes(); saveTrack(t); tick();
+});
+box.addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return; const t = findT(b); if (!t) return;
+  if (b.dataset.act === "test") {
+    await ensureOutput();
+    try { const buf = await getBuffer(t), g = ctx.createGain(), s = ctx.createBufferSource();
+      g.gain.value = vol2gain(t.vol); g.connect(master); s.buffer = buf; s.connect(g); s.start();
+      s.onended = () => { g.disconnect(); if (!playing && outEl) outEl.pause(); };
+    } catch { say(`„${t.name}“ nejde přehrát. Zkus soubor převést do MP3.`); }
+  }
+  if (b.dataset.act === "del") {
+    if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Opravdu?";
+      setTimeout(() => { b.classList.remove("armed"); b.textContent = "Odebrat"; }, 3000); return; }
+    stopVoice(t); tracks = tracks.filter(x => x !== t); buffers.delete(t.id); memBlobs.delete(t.id);
+    safe(idb.del("sounds", t.id)); safe(idb.del("blobs", t.id)); renderTracks();
+  }
+});
+
+$("#files").addEventListener("change", async e => {
+  const files = [...e.target.files]; e.target.value = ""; if (!files.length) return;
+  say("Načítám " + files.length + (files.length === 1 ? " soubor…" : " souborů…"));
+  const bad = [];
+  for (const f of files) {
+    const id = uid();
+    try {
+      const buf = await getCtx().decodeAudioData(await f.arrayBuffer());
+      buffers.set(id, Promise.resolve(buf));
+      const long = buf.duration >= 15;
+      const t = { id, name: f.name.replace(/\.[^.]+$/, ""), demo: null, vol: 60, on: true,
+        mode: long ? "loop" : "interval", min: 10, max: 40, order: Date.now() + tracks.length };
+      memBlobs.set(id, f); tracks.push(t);
+      await safe(idb.put("blobs", { id, blob: f })); memBlobs.delete(id) ;
+      if (!storageOk) memBlobs.set(id, f);
+      safe(idb.put("sounds", strip(t)));
+      if (playing) startVoice(t);
+    } catch { bad.push(f.name); }
+  }
+  renderTracks();
+  say(bad.length ? "Tyto soubory nejde přehrát: " + bad.join(", ") : "");
+});
+
+$("#saveMix").addEventListener("click", () => {
+  const name = $("#mixName").value.trim(); if (!name) { $("#mixName").focus(); say("Napiš název mixu."); return; }
+  let m = mixes.find(x => x.name.toLowerCase() === name.toLowerCase());
+  if (!m) { m = { id: uid(), name }; mixes.push(m); }
+  m.tracks = Object.fromEntries(tracks.map(t => [t.id, { vol: t.vol, on: t.on, mode: t.mode, min: t.min, max: t.max }]));
+  safe(idb.put("mixes", m)); currentMix = name; $("#mixName").value = ""; say(""); renderMixes();
+});
+$("#mixes").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return; const chip = b.closest("[data-mix]");
+  const m = mixes.find(x => x.id === chip.dataset.mix); if (!m) return;
+  if (b.dataset.act === "load") {
+    for (const t of tracks) { const s = m.tracks[t.id]; if (s) Object.assign(t, s); else t.on = false; saveTrack(t); }
+    currentMix = m.name; renderTracks(); renderMixes(); restartVoices();
+    try { navigator.mediaSession.metadata = new MediaMetadata({ title: "Šumění", artist: m.name }); } catch {}
+  }
+  if (b.dataset.act === "mdel") {
+    if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "smazat?";
+      setTimeout(() => { b.classList.remove("armed"); b.textContent = "×"; }, 3000); return; }
+    mixes = mixes.filter(x => x !== m); safe(idb.del("mixes", m.id)); if (currentMix === m.name) currentMix = null; renderMixes();
+  }
+});
+
+/* ---------- boot ---------- */
+(async () => {
+  let saved = [];
+  try { saved = await idb.all("sounds"); mixes = await idb.all("mixes"); } catch { storageOk = false; }
+  if (!saved.length && !lsGet("sumeni.seeded")) {
+    saved = DEMOS.map((d, n) => ({ id: "demo-" + d.demo, order: n, ...d }));
+    saved.forEach(t => safe(idb.put("sounds", t))); lsSet("sumeni.seeded", "1");
+  }
+  tracks = saved.sort((a, b) => a.order - b.order);
+  renderTracks(); renderMixes(); paintTransport();
+})();
+})();
+</script>
